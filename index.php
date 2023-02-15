@@ -7,18 +7,7 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\Message;
 use Longman\TelegramBot\DB;
 
-$bot_api_key  = 'your:bot_api_key';
-$bot_username = 'username_bot';
-
-$db_credentials = [
-    'host'     => 'localhost',
-    'user'     => 'username',
-    'password' => 'password',
-    'database' => 'myDB',
-];
-
 $telegram = new Telegram($bot_api_key, $bot_username);
-
 
 $input = Request::getInput();
 
