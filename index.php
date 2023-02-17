@@ -30,15 +30,27 @@ if ($input) {
 
     $request = new Request();
     $user = new User($chat_id, $message->getChat()->getUsername(), $database->getConnection(), $request);
-    $keyboard_user = new KeyboardUser($database->getConnection(), $user->getMenu(), $chat_id);
+    $keyboard_user = new KeyboardUser($database->getConnection(), $chat_id);
+
+    if($user->isNew()){
+        $keyboard_obj = $keyboard_user->setKeyboard(new Keyboard([]), 0);
+        $request::sendMessage([
+            'chat_id' => $chat_id,
+            'text' => $command_row['answer'],
+            'reply_markup' => $keyboard_obj,
+        ]);
+
+    } else {
+        if ($user->getAction()==NULL){ //significa che l'utente non sta effettuando alcuna operazione
+            //leggo il comando
+            if ($command_row == NULL){
+                $command_row = $database->searchCommand('command_not_found');
+            }
+            $command = new Command($command_row, $database->getConnection(), $chat_id, $user->getMenu(), $keyboard_user, new Keyboard([]));
+            Request::sendMessage($command->makeAction());
+        }    
+    }
     
-    // if($user->isNew){
-    $keyboard_user->setKeyboard(new Keyboard([]), $request);
-    // }
-    
-    /*if ($user->getAction()==NULL){
-        //leggo il comando
-    } */
     
     /*$keyboard_obj = new KeyboardUser($$database->getConnection(), $user, new Keyboard([]))
 

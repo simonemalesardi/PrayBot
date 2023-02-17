@@ -27,6 +27,7 @@ class User{
         if (sizeof($user)==0){
             $this->insertUser();
         }
+
         $this->user_row = $user;
     }
 

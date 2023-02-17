@@ -7,43 +7,95 @@ class Command{
     private $description;    
     public $action;
     private $connection; 
-    private $user;
-    //private $func;
+    private $chat_id;
+    private $user_menu;
+    private $keyboard_user;
+    private $keyboard_object;
 
     //costruttore che prende in input un record della tabella command e setta tutti i valori del comando
-    public function __construct($command, &$connection, $user) {
+    public function __construct($command, &$connection, $chat_id, $user_menu, $keyboard_user, $keyboard_object) {
         $this->command = $command['command'];
         $this->answer = $command['answer'];
         $this->text_menu = $command['text_menu'];
         $this->description = $command['description'];
         $this->action = $command['action'];
         $this->connection = $connection;
-        $this->user = $user;
+        $this->chat_id = $chat_id;
+        $this->user_menu = $user_menu;
+        $this->keyboard_user = $keyboard_user;
+        $this->keyboard_object = $keyboard_object;
+
     }
 
     public function makeAction(){
+        //prima di fare questo dovrei controllare lo stato dello user
         $next_hop = $this->action;
         return $this->$next_hop();
     }
 
-    private function init(){ //funzione lanciata allo start
-        $sql = "SELECT * FROM users WHERE chat_id = :chat_id";
-        $query = $this->connection->prepare($sql);
-        $query->execute(['chat_id' => $this->user]);
-        $command = $query->fetchAll();
+    private function httpAnswer($text, $keyboard = NULL){
+        $http = [
+            'chat_id' => $this->chat_id,
+            'text'=> $text
+        ];
+        if($keyboard != NULL)
+            $http = [
+                'chat_id' => $this->chat_id,
+                'text'=> $text,
+                'reply_markup' => $keyboard
+            ];
         
-        if(sizeof($command)==0){ //solo se l'utente non esiste
-            $date = new DateTime();
-            $converted_date = $date->format('Y-m-d H-i-s');
-            $sql = "INSERT INTO users (chat_id, created_at, menu) VALUES('$this->user', '$converted_date', 0)";
-            $stmt = $this->connection->prepare($sql);
-            $stmt->execute();
-            return "Benvenuto!";
-        }
-        return "Ci siamo già presentati";
+        return $http;
     }
 
+    private function init(){ //funzione lanciata allo start        
+        return $this->httpAnswer("Ci siamo già presentati");
+    }
 
+    private function getMessage(){
+        return $this->httpAnswer($this->answer);
+    }
+
+    private function deleteMessage(){
+        //devo cambiare il menu: prima controllo che menu ha attivato l'utente
+        //• se 1 -> ok 
+        //• se 0 -> change
+        if($this->user_menu == 1){ 
+            return $this->httpAnswer("Main menu", $this->changeUserMenu(0));
+        }
+    }
+
+    private function sendMessage(){
+        $this->writeMessage(); 
+        return $this->answer;
+    }
+
+    private function editMessage(){
+
+    }
+
+    private function scheduleMessage(){
+        $this->changeUserMenu();
+    }
+
+    private function writeMessage(){
+        //devo cambiare il menu: prima controllo che menu ha attivato l'utente
+        //• se 1 -> ok 
+        //• se 0 -> change
+        if($this->user_menu == 0){ 
+            return $this->httpAnswer($this->answer, $this->changeUserMenu(1));
+        }
+        return $this->getMessage();
+    }
+
+    private function changeUserMenu($menu){
+        //qui devo fare l'update del menu considerando $this->user
+        $sql = "UPDATE users SET menu=? WHERE chat_id=?"; 
+        $stmt= $this->connection->prepare($sql);
+        $stmt->execute([$menu, $this->chat_id]);
+
+        return $this->keyboard_user->setKeyboard($this->keyboard_object, $menu);
+    }
 
     // private function getMessage(){
     //     return $this->message;

@@ -13,7 +13,7 @@ class Database{
     }
 
     public function searchCommand($text){ 
-        $sql = "SELECT * FROM commands WHERE command = :command";
+        $sql = "SELECT * FROM commands WHERE command = :command or text_menu = :command";
         $query = $this->connection->prepare($sql);
         $query->execute(['command' => $text]);
         $command = $query->fetchAll();
