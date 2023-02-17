@@ -6,14 +6,14 @@ class User{
     private $chat_id;
     private $withUsername; //attributo per la configurazione di un utente, se true si configura, altrimenti no
     private $user_row;
-    private $request;
     private $is_new = false;
+    private $action;
+    private $menu;
     
-    public function __construct($chat_id, $username, &$connection, $request) {
+    public function __construct($chat_id, $username, &$connection) {
         $this->chat_id=$chat_id;
         $this->username = $username;
         $this->connection = $connection;
-        $this->request = $request;
         $this->getUser();
     }
 
@@ -28,7 +28,9 @@ class User{
             $this->insertUser();
         }
 
-        $this->user_row = $user;
+        $this->action = $user[0]['action'];
+        $this->menu = $user[0]['menu'];
+        //$this->user_row = $user;
     }
 
     private function insertUser(){
@@ -42,7 +44,7 @@ class User{
     }
 
     public function getAction(){
-        return $this->user_row[0]['action'];
+        return $this->action;
     }
 
     public function getUsername() : string{
@@ -54,7 +56,7 @@ class User{
     }
 
     public function getMenu(){
-        return $this->user_row[0]['menu'];
+        return $this->menu;
     }
 
     public function isNew(){

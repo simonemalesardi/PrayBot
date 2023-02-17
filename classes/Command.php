@@ -11,20 +11,42 @@ class Command{
     private $user_menu;
     private $keyboard_user;
     private $keyboard_object;
+    private $welcome;
 
     //costruttore che prende in input un record della tabella command e setta tutti i valori del comando
-    public function __construct($command, &$connection, $chat_id, $user_menu, $keyboard_user, $keyboard_object) {
-        $this->command = $command['command'];
-        $this->answer = $command['answer'];
-        $this->text_menu = $command['text_menu'];
-        $this->description = $command['description'];
-        $this->action = $command['action'];
+    public function __construct(&$connection, $chat_id, $text, $user_menu) {
         $this->connection = $connection;
         $this->chat_id = $chat_id;
+        $this->setCommand($text);
         $this->user_menu = $user_menu;
-        $this->keyboard_user = $keyboard_user;
-        $this->keyboard_object = $keyboard_object;
+    }
 
+    public function getCommand(){
+        return $this->command;
+    }
+
+    public function setCommand($text){
+        $command_row = $this->searchCommand($text);
+        if($command_row != NULL){
+            $this->command = $command_row['command'];
+            $this->answer = $command_row['answer'];
+            $this->text_menu = $command_row['text_menu'];
+            $this->description = $command_row['description'];
+            $this->action = $command_row['action'];    
+        } else 
+            $this->command = NULL;
+    }
+
+    private function searchCommand($text){ 
+        $sql = "SELECT * FROM commands WHERE command = :command or text_menu = :command";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['command' => $text]);
+        $command = $query->fetchAll();
+        
+        if (sizeof($command) == 1) {
+            return $command[0];;
+        }
+        return NULL;
     }
 
     public function makeAction(){
@@ -48,8 +70,13 @@ class Command{
         return $http;
     }
 
-    private function init(){ //funzione lanciata allo start        
-        return $this->httpAnswer("Ci siamo già presentati");
+    private function init(){ //funzione lanciata allo start 
+        return ($this->welcome) ? $this->httpAnswer($this->answer, $this->keyboard_user) : $this->httpAnswer("Ci siamo già presentati");
+    }
+
+    public function setParameters($welcome = false, $keyboard_user){
+        $this->welcome = $welcome;
+        $this->keyboard_user = $keyboard_user;
     }
 
     private function getMessage(){
@@ -66,8 +93,8 @@ class Command{
     }
 
     private function sendMessage(){
-        $this->writeMessage(); 
-        return $this->answer;
+        return ($this->user_menu != 1) ? $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma
+        ") : $this->writeMessage(); 
     }
 
     private function editMessage(){
@@ -79,9 +106,6 @@ class Command{
     }
 
     private function writeMessage(){
-        //devo cambiare il menu: prima controllo che menu ha attivato l'utente
-        //• se 1 -> ok 
-        //• se 0 -> change
         if($this->user_menu == 0){ 
             return $this->httpAnswer($this->answer, $this->changeUserMenu(1));
         }

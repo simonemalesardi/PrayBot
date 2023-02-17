@@ -4,9 +4,8 @@ class KeyboardUser {
     private $connection;
     private $chat_id;
 
-    public function __construct(&$connectionDB, $chat_id) {
+    public function __construct(&$connectionDB) {
         $this->connection = $connectionDB;
-        $this->chat_id = $chat_id;
     }
 
     public function setKeyboard($keyboard_obj, $keyboard_id){
@@ -15,10 +14,11 @@ class KeyboardUser {
         $query->execute(['id' => $keyboard_id]);
         $buttons = $query->fetchAll();
         
+        
         usort($buttons, function($a, $b) {
                 return $a['position'] - $b['position'];
             });
-        
+
         $array_buttons = [];
         
         foreach ($buttons as $button){
