@@ -20,7 +20,7 @@ if ($input) {
 
     $controller = new Controller($database, $update);
     $controller->setParameters();
-    $controller->manage();
+    $controller->start();
 
-    
+
 }

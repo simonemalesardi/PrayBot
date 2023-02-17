@@ -22,6 +22,8 @@ class Controller{
 
     private $request;
     private $user;
+
+    private $allowed_actions = ['/elimina', '/info', '/aiuto', '/start'];
     
     public function __construct($database, $message_received) {
         $this->connection = $database;
@@ -33,28 +35,48 @@ class Controller{
         $this->chat_id = $this->message->getChat()->getId();
         $this->text = $this->message->getText();
         $this->user = new User($this->chat_id, $this->message->getChat()->getUsername(), $this->connection);
-        $this->keyboard_user = new KeyboardUser($this->connection);
     }
 
-    public function manage(){
+    public function start(){
         $this->command = new Command($this->connection, $this->chat_id, $this->text, $this->user->getMenu()); //creazione del comando
         
         if($this->user->isNew()){ //gestione del nuovo utente: utente creato = new record e set tastiera
-            $keyboard_obj = $this->keyboard_user->setKeyboard(new Keyboard([]), 0);
-            $this->command->setParameters(true, $keyboard_obj);
+            $this->command->welcome = true;
             $this->request::sendMessage(
                 $this->command->makeAction()
             );
-        } else {
-            if ($this->user->getAction()==NULL){ //significa che l'utente non sta effettuando alcuna operazione
+        } else { //se l'utente non è nuovo 
+            if ($this->user->getAction()==NULL){ //se non sta effettuando alcuna operazione (come scrivi, modifica o programma)
                 if ($this->command->getCommand() == NULL)
                     $this->command->setCommand("command_not_found");
 
-                $this->request::sendMessage($this->command->makeAction());
-            }    
+                $this->request::sendMessage(['chat_id'=> $this->chat_id,
+                'text' => "test",]);
+                $this->command->setR($this->request);
+                $this->request::sendMessage(
+                    $this->command->makeAction()
+                );
+            } else { //se invece sta effettuando un'operazione
+                $this->command->httpAnswer($this->user->getAction());
+                if ($this->command->getCommand() == NULL){
+                    $this->request::sendMessage($this->command->httpAnswer("Grazie per il messaggio!"));
+                } else {
+                    $this->command->setDo();
+                    $this->command->setR($this->request);
+                    $this->request::sendMessage($this->command->makeAction());
+                }
+            }
         }
-        
-
     }
+
+
+        /*$this->request::sendMessage([
+            'chat_id' => $this->chat_id,
+            'text' => "test",
+            'reply_markup' => json_encode([
+                'remove_keyboard' => true,
+            ]),
+        ]);*/
+        
     
 }
