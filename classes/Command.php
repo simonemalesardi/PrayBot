@@ -15,14 +15,18 @@ class Command{
     private $keyboard_object;
     public $welcome;
     private $do;
+    private $text;
+    private $user_action;
 
     //costruttore che prende in input un record della tabella command e setta tutti i valori del comando
     public function __construct(&$connection, $chat_id, $text, $user_menu) {
         $this->connection = $connection;
         $this->chat_id = $chat_id;
+        $this->text = $text;
         $this->setCommand($text);
         $this->user_menu = $user_menu;
         $this->do = true;
+        $this->user_action = NULL;
     }
 
     public function getCommand(){
@@ -41,8 +45,9 @@ class Command{
             $this->command = NULL;
     }
 
-    public function setDo(){
+    public function setDo($user_action){
         $this->do = false;
+        $this->user_action = $user_action;
     }
 
     private function searchCommand($text){ 
@@ -92,8 +97,14 @@ class Command{
     }
 
     private function sendMessage(){
-        return ($this->user_menu != 1 or !$do) ? $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma
-        ") : $this->httpAnswer($this->answer);
+        if (($this->user_menu != 1 or !$do) and $this->user_action != 'sendMessage'){
+            return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
+        } else {
+            //return $this->httpAnswer($this->saveMessage());
+            $this->saveMessage();
+            return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
+            //return $this->httpAnswer($this->answer);
+        }
     }
 
     private function editMessage(){
@@ -111,7 +122,7 @@ class Command{
     private function writeMessage(){
         if($this->do){
             if($this->user_menu == 0){ 
-                return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'writeMessage'));
+                return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'writingMessage'));
             }
         }
         else 
@@ -120,6 +131,7 @@ class Command{
 
     private function deleteMessage(){
         if($this->user_menu == 1){ 
+            if ($this->user_action=='sendMessage') $this->deleteTemporary();
             return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
         } else {
             return $this->httpAnswer("sei già al menu principale");
@@ -132,10 +144,72 @@ class Command{
             $stmt= $this->connection->prepare($sql);
             $stmt->execute([$menu, $action, $this->chat_id]);
         }
-        //return $this->keyboard_object->setKeyboard($this->buttons, $menu);
         return $this->setKeyboard($menu);
     }
 
+    private function saveMessage(){
+        $sql = "SELECT * FROM temporary_prays WHERE user = :user";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['user' => $this->chat_id]);
+        $temporary_pray = $query->fetchAll();
+
+        $text = $temporary_pray[0]['pray'];
+        $created_at = $temporary_pray[0]['created_at'];
+        $wednesday = $this->getWednesday();
+
+        $sql = "INSERT INTO prays (text, created_at, wednesday, id_user) VALUES
+            ('$text','$created_at','$wednesday', '$this->chat_id')";
+        $stmt = $this->connection->prepare($sql);
+        $stmt->execute();
+
+        $this->deleteTemporary();
+    }
+
+    private function deleteTemporary(){
+        $sql = "DELETE FROM temporary_prays WHERE user = :user";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['user' => $this->chat_id]);
+    }
+
+    public function temporarySaveMessage($action){
+        $operation = $action;
+        return $this->$operation();
+    }
+
+    private function getWednesday(){
+         // Calcola la data del prossimo mercoledì
+        $nextWednesday = strtotime('next wednesday');
+        // Calcola il numero del giorno della settimana per la data del prossimo mercoledì
+        $dayOfWeek = date('N', $nextWednesday);
+        // Se il giorno della settimana non è mercoledì, aggiungi il numero di giorni necessari per raggiungere il primo mercoledì successivo
+        if ($dayOfWeek != 3) {
+            $nextWednesday = strtotime('next wednesday', $nextWednesday);
+        }
+        // Formatta la data in un formato leggibile
+        $wednesday = date('Y-m-d', $nextWednesday);
+        return $wednesday;
+    }
+
+    private function writingMessage(){
+        $wednesday = $this->getWednesday();
+
+        $date = new DateTime();
+        $created_at = $date->format('Y-m-d H-i-s');
+        $sql = "INSERT INTO temporary_prays (user, pray, day, created_at) VALUES
+            ('$this->chat_id', '$this->text', '$wednesday', '$created_at')";
+        $stmt = $this->connection->prepare($sql);
+        $stmt->execute();
+
+        $sql = "UPDATE users SET action='sendMessage' WHERE chat_id=?"; 
+        $stmt= $this->connection->prepare($sql);
+        $stmt->execute([$this->chat_id]);
+        
+        //se si riesce a fare un'unica transazione sarebbe top
+
+
+        return $this->httpAnswer('Grazie per la preghiera!');
+    }
+    
     private function setKeyboard($menu){
         $keyboard = new Keyboard([]);
 

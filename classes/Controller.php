@@ -2,7 +2,6 @@
 
 require_once __DIR__ . '/Command.php';
 require_once __DIR__ . '/User.php';
-require_once __DIR__ . '/KeyboardUser.php';
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\Message;
@@ -39,7 +38,11 @@ class Controller{
 
     public function start(){
         $this->command = new Command($this->connection, $this->chat_id, $this->text, $this->user->getMenu()); //creazione del comando
-        
+        // $this->request::sendMessage([
+        //     'chat_id' => $this->chat_id,
+        //     'text' => "test",
+        // ]);
+
         if($this->user->isNew()){ //gestione del nuovo utente: utente creato = new record e set tastiera
             $this->command->welcome = true;
             $this->request::sendMessage(
@@ -50,19 +53,17 @@ class Controller{
                 if ($this->command->getCommand() == NULL)
                     $this->command->setCommand("command_not_found");
 
-                $this->request::sendMessage(['chat_id'=> $this->chat_id,
-                'text' => "test",]);
-                $this->command->setR($this->request);
+                //$this->command->setR($this->request);
                 $this->request::sendMessage(
                     $this->command->makeAction()
                 );
             } else { //se invece sta effettuando un'operazione
-                $this->command->httpAnswer($this->user->getAction());
-                if ($this->command->getCommand() == NULL){
-                    $this->request::sendMessage($this->command->httpAnswer("Grazie per il messaggio!"));
+                if ($this->command->getCommand() == NULL){ 
+                    $message = $this->command->temporarySaveMessage($this->user->getAction());
+                    $this->request::sendMessage($message);
                 } else {
-                    $this->command->setDo();
-                    $this->command->setR($this->request);
+                    $this->command->setDo($this->user->getAction());
+                    //$this->command->setR($this->request);
                     $this->request::sendMessage($this->command->makeAction());
                 }
             }
