@@ -92,6 +92,22 @@ class Command{
         return $this->httpAnswer($this->answer);
     }
 
+    private function getInfo(){
+        if ($this->user_action=='sendMessage'){
+            return $this->httpAnswer($this->answer.' Eri rimasto qui: '.$this->getTemporaryPray());
+        }
+        return $this->httpAnswer($this->answer);
+    }
+
+    private function getTemporaryPray(){
+        $sql = "SELECT * FROM temporary_prays WHERE user = :id";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['id' => $this->chat_id]);
+        $temporaryPray = $query->fetchAll();
+
+        return $temporaryPray[0]['pray'];
+    }
+
     public function setR($r){
         $this->r=$r;
     }
@@ -154,7 +170,8 @@ class Command{
         $temporary_pray = $query->fetchAll();
 
         $text = $temporary_pray[0]['pray'];
-        $created_at = $temporary_pray[0]['created_at'];
+        $date = new DateTime();
+        $created_at = $date->format('Y-m-d H-i-s');
         $wednesday = $this->getWednesday();
 
         $sql = "INSERT INTO prays (text, created_at, wednesday, id_user) VALUES
