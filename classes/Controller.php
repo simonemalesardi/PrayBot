@@ -37,7 +37,7 @@ class Controller{
     }
 
     public function start(){
-        $this->command = new Command($this->connection, $this->chat_id, $this->text, $this->user->getMenu()); //creazione del comando
+        $this->command = new Command($this->connection, $this->chat_id, $this->text, $this->user->getMenu(), $this->user->getPrivileges()); //creazione del comando
         // $this->request::sendMessage([
         //     'chat_id' => $this->chat_id,
         //     'text' => "test",

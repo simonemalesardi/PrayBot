@@ -9,6 +9,7 @@ class User{
     private $is_new = false;
     private $action;
     private $menu;
+    private $privileges;
     
     public function __construct($chat_id, $username, &$connection) {
         $this->chat_id=$chat_id;
@@ -30,6 +31,7 @@ class User{
 
         $this->action = $user[0]['action'];
         $this->menu = $user[0]['menu'];
+        $this->privileges = $user[0]['is_admin'];
         //$this->user_row = $user;
     }
 
@@ -45,6 +47,10 @@ class User{
 
     public function getAction(){
         return $this->action;
+    }
+    
+    public function getPrivileges(){
+        return $this->privileges;
     }
 
     public function getUsername() : string{

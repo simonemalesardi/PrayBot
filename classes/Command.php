@@ -17,9 +17,9 @@ class Command{
     private $do;
     private $text;
     private $user_action;
+    private $privileges;
 
-
-    public function __construct(&$connection, $chat_id, $text, $user_menu) {
+    public function __construct(&$connection, $chat_id, $text, $user_menu, $privileges) {
         $this->connection = $connection;
         $this->chat_id = $chat_id;
         $this->text = $text;
@@ -27,6 +27,7 @@ class Command{
         $this->user_menu = $user_menu;
         $this->do = true;
         $this->user_action = NULL;
+        $this->privileges = $privileges;
     }
 
     public function getCommand(){
@@ -74,13 +75,15 @@ class Command{
     public function httpAnswer($text, $keyboard = NULL){
         $http = [
             'chat_id' => $this->chat_id,
-            'text'=> $text
+            'text'=> $text,
+            'parse_mode' => 'HTML'
         ];
         if($keyboard != NULL)
             $http = [
                 'chat_id' => $this->chat_id,
                 'text'=> $text,
-                'reply_markup' => $keyboard
+                'reply_markup' => $keyboard,
+                'parse_mode' => 'HTML'
             ];
         
         return $http;
@@ -101,9 +104,9 @@ class Command{
     private function getInfo(){
         $answer = $this->answer;
         if ($this->user_action=='sendMessage'){
-            $answer = $answer.' Eri rimasto qui: '.$this->getTemporaryPray();
+            $answer = $answer.'Eri rimasto qui: '.$this->getTemporaryPray();
         } else if ($this->user_action=='changingMessage')
-            $answer = $answer.' La preghiera che stai modificando è questa: '.$this->getTemporaryPray();
+            $answer = $answer.' La preghiera che stai modificando è questa: '.$this->getTemporaryPray();            
 
         return $this->httpAnswer($answer);
     }
@@ -126,8 +129,6 @@ class Command{
     private function sendMessage(){
         if ($this->user_menu != 1)// or !$do) and $this->user_action != 'sendMessage')
             return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
-        else if ($this->user_action != 'writingMessage' and $this->user_action != 'changingMessage')
-            return $this->httpAnswer("Prima di poter scrivere un altro messaggio devi confermare (/invia), modificare (/modifica) o eliminare (/elimina) la preghiera");
         else if ($this->user_action === 'writingMessage')
             return $this->httpAnswer("Prima di poter inviare la preghiera devi scriverla! Una volta fatto puoi lanciare il comando /invia");
         else if  ($this->user_action === 'changingMessage')
@@ -146,13 +147,19 @@ class Command{
             return $this->httpAnswer('Sei già in modalità modifica, scrivi il messaggio che vuoi ed andrà a sostituire il tuo precedente...');
         }
         else if($this->user_action === 'sendMessage'){
-            //devo fare update
-            $this->changeUserMenu(1, 'changingMessage', false);
-            return $this->httpAnswer("Ok, ora puoi inserire il testo per modificare il messaggio. Lancia il comando /annulla per cancellare l'operazione di modifica. Qualsiasi testo inserisci andrà a cancellare la preghiera precedente che avevi scritto.");
+            return $this->httpAnswer("Ok, ora puoi inserire il testo per modificare il messaggio. Lancia il comando /annulla per cancellare l'operazione di modifica. Qualsiasi testo inserisci andrà a cancellare la preghiera precedente che avevi scritto.
+", $this->changeUserMenu(2, 'changingMessage'));
         }
         else {
             return $this->httpAnswer("Non puoi modificare un messaggio se prima non lo hai inserito...");
         }
+    }
+
+    private function undoEdit(){
+        if($this->user_action === 'changingMessage'){
+            return $this->httpAnswer("Operazione di modifica annullata", $this->changeUserMenu(1, 'sendMessage'));
+        } else 
+            return $this->httpAnswer("Non puoi utilizzare questa funzionalità, non hai effettuato alcuna operazione che richiede l'annullamento");    
     }
 
     //it allows to schedule the date to dedicate the pray
@@ -169,8 +176,11 @@ class Command{
                 return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'writingMessage'));
             }
         }
-        else 
+        else {
+            if ($this->user_action != 'writingMessage' and $this->user_action != 'changingMessage')
+                return $this->httpAnswer("Prima di poter scrivere un altro messaggio devi confermare (/invia), modificare (/modifica) o eliminare (/elimina) la preghiera");
             return $this->httpAnswer("Sei già in modalità inserimento...");
+        }
     }
 
     //it allows to delete a pray that has not yet been sent 
@@ -238,16 +248,16 @@ class Command{
         if ($today === 'Wednesday' and $current_time_formatted<'20:30:00') {
             //prendo il current timestamp
             $date = new DateTime();
-            $wednesday = $date->format('Y-m-d H-i-s');
+            return $date->format('Y-m-d H-i-s');
+            
         } else{
-            $nextWednegitsday = strtotime('next wednesday');
+            $nextWednesday = strtotime('next wednesday');
             $dayOfWeek = date('N', $nextWednesday);
             if ($dayOfWeek != 3) {
             $nextWednesday = strtotime('next wednesday', $nextWednesday);
             }
-            $wednesday = date('Y-m-d', $nextWednesday);
+            return date('Y-m-d', $nextWednesday);
         }
-        return $wednesday;
     }
 
     //mode of the user: when it's in changingMessage mode, the next written message replaces the old one in the temporary prays table and the action is changed into sendMessage
@@ -261,7 +271,7 @@ class Command{
         $stmt= $this->connection->prepare($sql); 
         $stmt->execute([$this->chat_id]);
         
-        return $this->httpAnswer('La tua preghiera è stata modificata correttamente ');
+        return $this->httpAnswer('La tua preghiera è stata modificata correttamente. Ora per inviarla devi utilizzare il comando /invia ', $this->changeUserMenu(1, 'sendMessage'));
     }
 
     //mode of the user: when it's in writingMessage mode, the next written message is stored in the temporary prays table and the action is changed into sendMessage
@@ -289,9 +299,9 @@ class Command{
     private function setKeyboard($menu){
         $keyboard = new Keyboard([]);
 
-        $sql = "SELECT * FROM keyboards WHERE id = :id";
+        $sql = "SELECT * FROM keyboards WHERE id = :id and admin <= :privileges";
         $query = $this->connection->prepare($sql);
-        $query->execute(['id' => $menu]);
+        $query->execute(['id' => $menu, 'privileges' => $this->privileges]);
         $buttons = $query->fetchAll();
 
         usort($buttons, function($a, $b) {
@@ -304,7 +314,12 @@ class Command{
             $size = sizeof($array_buttons);
 
             if ($size == 0) {
-                array_push($array_buttons, [$button['command']]);
+                if ($button['style']=='half')
+                    array_push($array_buttons, [$button['command']]);
+                if ($button['style']=='full'){
+                    array_push($array_buttons, [$button['command']]);
+                    array_push($array_buttons, []);  
+                }
             }
             else{
                 if (sizeof($array_buttons[$size-1])<2 && $button['style']=='half') {
