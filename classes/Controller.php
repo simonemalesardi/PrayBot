@@ -59,9 +59,9 @@ class Controller{
                 );
             } else { //se invece sta effettuando un'operazione
                 if ($this->command->getCommand() == NULL){ 
-                    $this->command->setR($this->request);
-                    $message = $this->command->temporarySaveMessage($this->user->getAction());
-                    $this->request::sendMessage($message);
+                    //$this->command->setR($this->request);
+                    $action_message = $this->command->temporarySaveMessage($this->user->getAction());
+                    $this->request::sendMessage($action_message);
                 } else {
                     $this->command->setDo($this->user->getAction());
                     $this->command->setR($this->request);
