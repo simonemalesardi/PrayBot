@@ -33,6 +33,13 @@ class Command{
         return $this->command;
     }
 
+    public function checkWednesday(){
+        $now = time();
+        $day = date("h:i:s");
+        echo(date("h:i:s"));    
+        
+    }
+
     public function setCommand($text){
         $command_row = $this->searchCommand($text);
         if($command_row != NULL){
@@ -100,7 +107,7 @@ class Command{
     }
 
     private function getTemporaryPray(){
-        $sql = "SELECT * FROM temporary_prays WHERE user = :id";
+        $sql = "SELECT * FROM temporary_prays WHERE chat_id = :id";
         $query = $this->connection->prepare($sql);
         $query->execute(['id' => $this->chat_id]);
         $temporaryPray = $query->fetchAll();
@@ -164,7 +171,7 @@ class Command{
     }
 
     private function saveMessage(){
-        $sql = "SELECT * FROM temporary_prays WHERE user = :user";
+        $sql = "SELECT * FROM temporary_prays WHERE chat_id = :user";
         $query = $this->connection->prepare($sql);
         $query->execute(['user' => $this->chat_id]);
         $temporary_pray = $query->fetchAll();
@@ -174,7 +181,7 @@ class Command{
         $created_at = $date->format('Y-m-d H-i-s');
         $wednesday = $this->getWednesday();
 
-        $sql = "INSERT INTO prays (text, created_at, wednesday, id_user) VALUES
+        $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
             ('$text','$created_at','$wednesday', '$this->chat_id')";
         $stmt = $this->connection->prepare($sql);
         $stmt->execute();
@@ -183,7 +190,7 @@ class Command{
     }
 
     private function deleteTemporary(){
-        $sql = "DELETE FROM temporary_prays WHERE user = :user";
+        $sql = "DELETE FROM temporary_prays WHERE chat_id = :user";
         $query = $this->connection->prepare($sql);
         $query->execute(['user' => $this->chat_id]);
     }
@@ -194,17 +201,66 @@ class Command{
     }
 
     private function getWednesday(){
-         // Calcola la data del prossimo mercoledì
-        $nextWednesday = strtotime('next wednesday');
-        // Calcola il numero del giorno della settimana per la data del prossimo mercoledì
-        $dayOfWeek = date('N', $nextWednesday);
-        // Se il giorno della settimana non è mercoledì, aggiungi il numero di giorni necessari per raggiungere il primo mercoledì successivo
-        if ($dayOfWeek != 3) {
+        $this->r::sendMessage($this->httpAnswer('Controllo che siano prima delle 20:30 di mercoledì...'));
+        
+        date_default_timezone_set('Europe/Rome');
+        $today = date('l');
+        $current_time = time();
+        $current_time_formatted = date('H:i:s', $current_time);
+        if ($today === 'Wednesday' and $current_time_formatted<'20:30:00') {
+            //prendo il current timestamp
+            $date = new DateTime();
+            $wednesday = $date->format('Y-m-d H-i-s');
+            
+            $this->r::sendMessage([
+                'chat_id' => $this->chat_id,
+                'text'=> 'siamo sul giorno stesso '.$wednesday,
+            ]);
+        } else{
+            $nextWednesday = strtotime('next wednesday');
+            $dayOfWeek = date('N', $nextWednesday);
+            if ($dayOfWeek != 3) {
             $nextWednesday = strtotime('next wednesday', $nextWednesday);
+            }
+            $wednesday = date('Y-m-d', $nextWednesday);
+            
+            $this->r::sendMessage([
+                'chat_id' => $this->chat_id,
+                'text'=> 'prossimo mercoledì '.$wednesday,
+            ]);
         }
-        // Formatta la data in un formato leggibile
-        $wednesday = date('Y-m-d', $nextWednesday);
+        
         return $wednesday;
+        
+        /*
+        CODICE FUNZIONANTE SULLA DOMENICA
+        $today = date('l');
+        $current_time = time();
+        $current_time_formatted = date('H:i:s', $current_time);
+        if ($today === 'Sunday' and $current_time_formatted<'17:04:00') 
+            echo('ok lo accetto domenica'.'<br>');
+        else{
+            $nextWednesday = strtotime('next sunday');
+            $dayOfWeek = date('N', $nextWednesday);
+            if ($dayOfWeek != 7) {
+            $nextWednesday = strtotime('next sunday', $nextWednesday);
+            }
+            $wednesday = date('Y-m-d', $nextWednesday);
+            echo('prossima domenica'.'<br>');
+        }
+        */
+
+        // Calcola la data del prossimo mercoledì
+        // $nextWednesday = strtotime('next wednesday');
+        // // Calcola il numero del giorno della settimana per la data del prossimo mercoledì
+        // $dayOfWeek = date('N', $nextWednesday);
+        // // Se il giorno della settimana non è mercoledì, aggiungi il numero di giorni necessari per raggiungere il primo mercoledì successivo
+        // if ($dayOfWeek != 3) {
+        //     $nextWednesday = strtotime('next wednesday', $nextWednesday);
+        // }
+        // // Formatta la data in un formato leggibile
+        // $wednesday = date('Y-m-d', $nextWednesday);
+        // return $wednesday;
     }
 
     private function writingMessage(){
@@ -212,7 +268,7 @@ class Command{
 
         $date = new DateTime();
         $created_at = $date->format('Y-m-d H-i-s');
-        $sql = "INSERT INTO temporary_prays (user, pray, day, created_at) VALUES
+        $sql = "INSERT INTO temporary_prays (chat_id, pray, day, created_at) VALUES
             ('$this->chat_id', '$this->text', '$wednesday', '$created_at')";
         $stmt = $this->connection->prepare($sql);
         $stmt->execute();

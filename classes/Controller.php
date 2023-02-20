@@ -53,17 +53,18 @@ class Controller{
                 if ($this->command->getCommand() == NULL)
                     $this->command->setCommand("command_not_found");
 
-                //$this->command->setR($this->request);
+                $this->command->setR($this->request);
                 $this->request::sendMessage(
                     $this->command->makeAction()
                 );
             } else { //se invece sta effettuando un'operazione
                 if ($this->command->getCommand() == NULL){ 
+                    $this->command->setR($this->request);
                     $message = $this->command->temporarySaveMessage($this->user->getAction());
                     $this->request::sendMessage($message);
                 } else {
                     $this->command->setDo($this->user->getAction());
-                    //$this->command->setR($this->request);
+                    $this->command->setR($this->request);
                     $this->request::sendMessage($this->command->makeAction());
                 }
             }
