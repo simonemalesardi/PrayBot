@@ -103,8 +103,8 @@ class Command{
     //it obtains the info after the user press the relative button
     private function getInfo(){
         $answer = $this->answer;
-        if ($this->user_action=='writingMessage')
-            $answer = $answer.'<i>Non hai scritto ancora nessuna preghiera, scrivi una preghiera e conferma tramite /invio, altrimenti /annulla</i>';
+        if ($this->user_action=='writingMessage' or $this->user_action=="schedulingMessage")
+            $answer = $answer.'<i>Non hai scritto ancora nessuna preghiera, scrivi una preghiera premi invio per confermare, altrimenti /annulla</i>';
         
         return $this->httpAnswer($answer);
     }
@@ -174,14 +174,99 @@ class Command{
         } else 
             return $this->httpAnswer("Non puoi utilizzare questa funzionalità, non hai effettuato alcuna operazione che richiede l'annullamento");    
     }
-
+    
+   
     //it allows to schedule the date to dedicate the pray
     private function scheduleMessage(){
-        if (!$do)
-            return $this->httpAnswer("Non puoi modificare un messaggio se prima non lo hai inserito...");
-        return $this->httpAnswer($this->answer);
+        if($this->user_action == NULL){
+            //update dello stato
+            return $this->httpAnswer('Inserisci la data per cui vuoi programmare la preghiera:', $this->changeUserMenu(1, 'schedulingMessage'));
+        } else if ($this->user_action == 'schedulingMessage'){
+            return $this->httpAnswer('Stai già programmando l\'inserimento. Inserisci la data ');
+        } else {
+            if ($this->user_action == 'sendMessage')
+                return $this->httpAnswer('Prima di procedere con il comando /programma, termina l\'operazione che hai iniziato con /scrivi. Scrivi quindi una preghiera');    
+            return $this->httpAnswer('Prima di procedere con il comando, finisci di programmare la preghiera. Inserisci la preghiera');
+        }
     }
 
+    public function schedulingMessage(){
+        $answer = $this->checkWednesday();
+        return $this->httpAnswer($answer);
+    }
+
+    public function sendingMessage(){
+        $sql = "SELECT * FROM scheduled_prays WHERE chat_id = :chat_id";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['chat_id' => $this->chat_id]);
+        $scheduled = $query->fetchAll()[0];
+
+        $created_at = $scheduled['created_at'];
+        $schedule = $scheduled['scheduled'];
+        $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
+        ('$this->text','$created_at','$schedule', '$this->chat_id')";
+        $stmt = $this->connection->prepare($sql);
+        $stmt->execute();
+
+        $sql = "DELETE FROM scheduled_prays WHERE chat_id = :chat_id";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['chat_id' => $this->chat_id]);
+
+        return $this->httpAnswer('Grazie per aver condiviso con me la tua preghiera!', $this->changeUserMenu(0, NULL));
+    }
+
+    private function is_valid_date($date_string) {
+        $date = DateTime::createFromFormat('d/m/Y', $date_string);
+        return $date && $date->format('d/m/Y') === $date_string;
+    }
+
+    private function checkWednesday(){
+        $next_wednesday = date('d/m/Y', strtotime($this->getWednesday()));
+        // controlla che la stringa sia nel formato gg/mm/aaaa
+        if (!preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $this->text)) {
+            return "Ops! La data che hai inserito non è in un formato corretto. Il formato corretto è gg/mm/aaaa (es: $next_wednesday)";
+        } 
+
+        // verifica se la stringa è una data valida
+        if ($this->is_valid_date($this->text)){
+            $this->text = DateTime::createFromFormat('d/m/Y', $this->text);
+            $isWednesday = $this->isWednesdayAndLesser($next_wednesday);
+            if ($isWednesday[0]){
+                $this->updateUser(1, 'sendingMessage');
+                
+                $text = $this->text->format('Y-m-d');
+                $date = new DateTime();
+                $created_at = $date->format('Y-m-d H-i-s');
+
+                $sql = "INSERT INTO scheduled_prays (chat_id, created_at, scheduled) VALUES
+                    ('$this->chat_id','$created_at','$text')";
+                $stmt = $this->connection->prepare($sql);
+                $stmt->execute();
+                
+                return 'Inserisci ora la preghiera che ti sta a cuore';
+            }
+            else{
+                if($isWednesday[1] != NULL)
+                    return 'Non puoi programmare una preghiera per questa data '.$isWednesday[1];
+                else
+                    return 'Non puoi programmare una preghiera per questa data perché è una data passata';
+            }          
+        } else {
+            return 'La data che hai inserito è nel formato corretto ma hai inserito una data inesistente, reinserisci!';
+        }
+        
+    }       
+
+    function isWednesdayAndLesser($next_wednesday) {    
+        if ($this->text->format('N') != 3) {
+            return [false, 'perchè non è un mercoledì'];
+        }
+
+        $next_wednesday = DateTime::createFromFormat('d/m/Y', $next_wednesday);
+        return [$this->text >= $next_wednesday, NULL];
+    }
+
+    
     //it allows to write a pray and to store it in a temporary database table 
     private function writeMessage(){
         if($this->do){
@@ -192,6 +277,9 @@ class Command{
         else {
             if ($this->user_action == 'sendMessage')
                 return $this->httpAnswer("Sei già in modalità inserimento...");
+            else if($this->user_action == 'schedulingMessage' or $this->user_action == 'sendingMessage')
+                return $this->httpAnswer("Prima di procedere con l'inserimento di una nuova preghiera, termina la programmazione che stavi facendo");
+
             return $this->httpAnswer("La preghiera è stata salvata correttamente");
         }
     }
@@ -199,19 +287,27 @@ class Command{
     //it allows to delete a pray that has not yet been sent 
     private function deleteMessage(){
         if($this->user_menu == 1){ 
+            if($this->user_action == 'sendingMessage'){
+                $sql = "DELETE FROM scheduled_prays WHERE chat_id = :chat_id";
+                $query = $this->connection->prepare($sql);
+                $query->execute(['chat_id' => $this->chat_id]);
+            }
             return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
         } else {
-            return $this->httpAnswer("sei già al menu principale");
+            return $this->httpAnswer("Sei già al menu principale");
         }
     }
 
     //method that allows to change the keyboard and to refresh eventually the action of a user
     private function changeUserMenu($menu, $action){ //refresh = true, viene refreshata la keyboard
+        $this->updateUser($menu, $action);
+        return $this->setKeyboard($menu);
+    }
+
+    private function updateUser($menu, $action){
         $sql = "UPDATE users SET menu=?, action=? WHERE chat_id=?"; 
         $stmt= $this->connection->prepare($sql);
         $stmt->execute([$menu, $action, $this->chat_id]);
-
-        return $this->setKeyboard($menu);
     }
 
     //it obtains the following wednesday considering the datetime at the operation time

@@ -56,7 +56,8 @@ class Controller{
             } else { //se invece sta effettuando un'operazione
                 if ($this->command->getCommand() == NULL){ 
                     $this->command->setR($this->request);
-                    $this->request::sendMessage($this->command->sendMessage());
+                    $action = $this->user->getAction();
+                    $this->request::sendMessage($this->command->$action());
                 } else {
                     $this->command->setDo($this->user->getAction());
                     $this->command->setR($this->request);
