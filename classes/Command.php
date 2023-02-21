@@ -91,7 +91,7 @@ class Command{
 
     //it's the function run every time the user digit /start or press the initial Start button (the Start button appears also every time the user cleans the conversation)
     private function init(){ 
-        $answer =  ($this->welcome) ? $this->answer : "Ci siamo già presentati"; //devo settare changeUserMenu il valore di action dell'utente
+        $answer =  ($this->welcome) ? $this->answer : "Ci siamo già presentati, ma nel caso in cui non ti ricordassi mi ripresento!\n\n".$this->answer; //devo settare changeUserMenu il valore di action dell'utente
         return $this->httpAnswer($answer, $this->setKeyboard($this->user_menu)); 
     }
 
@@ -103,11 +103,9 @@ class Command{
     //it obtains the info after the user press the relative button
     private function getInfo(){
         $answer = $this->answer;
-        if ($this->user_action=='sendMessage'){
-            $answer = $answer.'Eri rimasto qui: '.$this->getTemporaryPray();
-        } else if ($this->user_action=='changingMessage')
-            $answer = $answer.' La preghiera che stai modificando è questa: '.$this->getTemporaryPray();            
-
+        if ($this->user_action=='writingMessage')
+            $answer = $answer.'<i>Non hai scritto ancora nessuna preghiera, scrivi una preghiera e conferma tramite /invio, altrimenti /annulla</i>';
+        
         return $this->httpAnswer($answer);
     }
 
@@ -131,8 +129,6 @@ class Command{
             return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
         else if ($this->user_action === 'writingMessage')
             return $this->httpAnswer("Prima di poter inviare la preghiera devi scriverla! Una volta fatto puoi lanciare il comando /invia");
-        else if  ($this->user_action === 'changingMessage')
-            return $this->httpAnswer("Prima di poter inviare il messaggio devi completare la modifica inserendo la preghiera oppure /annulla. Una volta fatto puoi lanciare il comando /invia");
         else {
             //return $this->httpAnswer($this->saveMessage());
             $this->saveMessage();
@@ -142,7 +138,7 @@ class Command{
     }
 
     //it allows to edit an existing pray that has not yet been confirmed 
-    private function editMessage(){
+    /*private function editMessage(){
         if($this->user_action === 'changingMessage'){
             return $this->httpAnswer('Sei già in modalità modifica, scrivi il messaggio che vuoi ed andrà a sostituire il tuo precedente...');
         }
@@ -153,8 +149,69 @@ class Command{
         else {
             return $this->httpAnswer("Non puoi modificare un messaggio se prima non lo hai inserito...");
         }
+    }*/
+    
+    private function downloadPrays(){
+        $wednesday = $this->getWednesday('20:45:00');
+        $prays = $this->getPray($wednesday);
+        $wednesday = date('d/m/Y', strtotime($wednesday));
+        
+        $unique_pray = $this->createExcel($prays);
+        //$this->generateHtmlPage();
+        return $this->httpAnswer("<b>Ecco le preghiere di mercoledì $wednesday</b>"."\n".$unique_pray);    
     }
 
+    private function getPray($wednesday){
+        $sql = "SELECT * FROM prays WHERE wednesday = :wed";
+        $query = $this->connection->prepare($sql);
+        $query->execute(['wed' => $wednesday]);
+        $prays = $query->fetchAll();
+
+        return $prays;
+    }
+
+    private function createExcel($prays){
+        $unique_string_of_prays = "";
+        $cont = 1;
+        foreach($prays as $pray){
+            $unique_string_of_prays = $unique_string_of_prays."\n\n<i><b>$cont. </b>".$pray['text']."</i>";//"$unique_string_of_prays \n\n <br>$cont. </br> ".$pray['text'];
+            $cont = $cont +1 ;
+        }
+        return $unique_string_of_prays;
+        /*$filename = "./example.txt";
+
+        $handle = fopen($filename, 'w');
+        fwrite($handle, "Hello, world!");
+
+        $this->r::sendDocument([
+            'chat_id' => $this->chat_id,
+            'document' => $filename,
+            'caption' => 'File temporaneo',
+        ]);
+
+        fclose($handle);*/
+
+    }
+
+    private function generateHtmlPage(){
+        $tmpFile = tmpfile(sys_get_temp_dir(), './prefix.txt');
+        // Scrivi "Ciao Mondo" nel file
+        fwrite($tempFile, "Ciao Mondo");
+
+        // Scrivi il contenuto del file
+        $file = curl_file_create(stream_get_meta_data($tmpFile)['uri']);
+
+        // Invia il file in chat
+        $this->r::sendDocument([
+            'chat_id' => $this->chat_id,
+            'document' => $file,
+            'caption' => 'File temporaneo',
+        ]);
+
+        // Rimuovi il file temporaneo
+        fclose($tmpFile);
+    }
+    
     private function undoEdit(){
         if($this->user_action === 'changingMessage'){
             return $this->httpAnswer("Operazione di modifica annullata", $this->changeUserMenu(1, 'sendMessage'));
@@ -240,12 +297,12 @@ class Command{
     }
 
     //it obtains the following wednesday considering the datetime at the operation time
-    private function getWednesday(){        
+    private function getWednesday($hour='20:30:00'){        
         date_default_timezone_set('Europe/Rome');
         $today = date('l');
         $current_time = time();
         $current_time_formatted = date('H:i:s', $current_time);
-        if ($today === 'Wednesday' and $current_time_formatted<'20:30:00') {
+        if ($today === 'Wednesday' and $current_time_formatted<$hour) {
             //prendo il current timestamp
             $date = new DateTime();
             return $date->format('Y-m-d H-i-s');
@@ -292,7 +349,7 @@ class Command{
         //the suggestion of this method is to create a only one transaction in order to make the two operations above
 
 
-        return $this->httpAnswer('Grazie per la preghiera!');
+        return $this->httpAnswer('Ora per poter salvare definitivamente la preghiera devi confermare tramite l\'apposito bottone o il comando /invia. Utilizza il comando /annulla per annullare l\'operazione');
     }
     
     //it returns the keyboard composed of the buttons
