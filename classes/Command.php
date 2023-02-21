@@ -124,41 +124,33 @@ class Command{
     }
 
     //it allows to send pray and to store in the final table where the admin can download prays
-    private function sendMessage(){
-        if ($this->user_menu != 1)// or !$do) and $this->user_action != 'sendMessage')
-            return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Prima attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
-        else if ($this->user_action === 'writingMessage')
-            return $this->httpAnswer("Prima di poter inviare la preghiera devi scriverla! Una volta fatto puoi lanciare il comando /invia");
+    public function sendMessage(){
+        if ($this->user_menu != 1)
+            return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
         else {
-            //return $this->httpAnswer($this->saveMessage());
             $this->saveMessage();
-            return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
-            //return $this->httpAnswer($this->answer);
+            return $this->httpAnswer('Grazie per aver condiviso con me la tua preghiera!', $this->changeUserMenu(0, NULL));
         }
     }
 
-    //it allows to edit an existing pray that has not yet been confirmed 
-    /*private function editMessage(){
-        if($this->user_action === 'changingMessage'){
-            return $this->httpAnswer('Sei già in modalità modifica, scrivi il messaggio che vuoi ed andrà a sostituire il tuo precedente...');
-        }
-        else if($this->user_action === 'sendMessage'){
-            return $this->httpAnswer("Ok, ora puoi inserire il testo per modificare il messaggio. Lancia il comando /annulla per cancellare l'operazione di modifica. Qualsiasi testo inserisci andrà a cancellare la preghiera precedente che avevi scritto.
-", $this->changeUserMenu(2, 'changingMessage'));
-        }
-        else {
-            return $this->httpAnswer("Non puoi modificare un messaggio se prima non lo hai inserito...");
-        }
-    }*/
+    //method that allows the saving of temporary prays: prays written but not sent
+    private function saveMessage(){
+        $text = $this->text;
+        $date = new DateTime();
+        $created_at = $date->format('Y-m-d H-i-s');
+        $wednesday = $this->getWednesday();
+
+        $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
+            ('$text','$created_at','$wednesday', '$this->chat_id')";
+        $stmt = $this->connection->prepare($sql);
+        $stmt->execute();
+    }
     
     private function downloadPrays(){
         $wednesday = $this->getWednesday('20:45:00');
-        $prays = $this->getPray($wednesday);
+        $unique_pray = $this->getPray($wednesday);
         $wednesday = date('d/m/Y', strtotime($wednesday));
-        
-        $unique_pray = $this->createExcel($prays);
-        //$this->generateHtmlPage();
-        return $this->httpAnswer("<b>Ecco le preghiere di mercoledì $wednesday</b>"."\n".$unique_pray);    
+        return $this->httpAnswer("<b>Ecco le preghiere di mercoledì $wednesday</b>".$unique_pray);    
     }
 
     private function getPray($wednesday){
@@ -166,50 +158,14 @@ class Command{
         $query = $this->connection->prepare($sql);
         $query->execute(['wed' => $wednesday]);
         $prays = $query->fetchAll();
-
-        return $prays;
-    }
-
-    private function createExcel($prays){
+        
         $unique_string_of_prays = "";
         $cont = 1;
         foreach($prays as $pray){
-            $unique_string_of_prays = $unique_string_of_prays."\n\n<i><b>$cont. </b>".$pray['text']."</i>";//"$unique_string_of_prays \n\n <br>$cont. </br> ".$pray['text'];
+            $unique_string_of_prays = $unique_string_of_prays."\n\n<i><b>$cont. </b>".$pray['text']."</i>";
             $cont = $cont +1 ;
         }
         return $unique_string_of_prays;
-        /*$filename = "./example.txt";
-
-        $handle = fopen($filename, 'w');
-        fwrite($handle, "Hello, world!");
-
-        $this->r::sendDocument([
-            'chat_id' => $this->chat_id,
-            'document' => $filename,
-            'caption' => 'File temporaneo',
-        ]);
-
-        fclose($handle);*/
-
-    }
-
-    private function generateHtmlPage(){
-        $tmpFile = tmpfile(sys_get_temp_dir(), './prefix.txt');
-        // Scrivi "Ciao Mondo" nel file
-        fwrite($tempFile, "Ciao Mondo");
-
-        // Scrivi il contenuto del file
-        $file = curl_file_create(stream_get_meta_data($tmpFile)['uri']);
-
-        // Invia il file in chat
-        $this->r::sendDocument([
-            'chat_id' => $this->chat_id,
-            'document' => $file,
-            'caption' => 'File temporaneo',
-        ]);
-
-        // Rimuovi il file temporaneo
-        fclose($tmpFile);
     }
     
     private function undoEdit(){
@@ -230,20 +186,19 @@ class Command{
     private function writeMessage(){
         if($this->do){
             if($this->user_menu == 0){ 
-                return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'writingMessage'));
+                return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'sendMessage'));
             }
         }
         else {
-            if ($this->user_action != 'writingMessage' and $this->user_action != 'changingMessage')
-                return $this->httpAnswer("Prima di poter scrivere un altro messaggio devi confermare (/invia), modificare (/modifica) o eliminare (/elimina) la preghiera");
-            return $this->httpAnswer("Sei già in modalità inserimento...");
+            if ($this->user_action == 'sendMessage')
+                return $this->httpAnswer("Sei già in modalità inserimento...");
+            return $this->httpAnswer("La preghiera è stata salvata correttamente");
         }
     }
 
     //it allows to delete a pray that has not yet been sent 
     private function deleteMessage(){
         if($this->user_menu == 1){ 
-            if ($this->user_action=='sendMessage') $this->deleteTemporary();
             return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
         } else {
             return $this->httpAnswer("sei già al menu principale");
@@ -251,49 +206,12 @@ class Command{
     }
 
     //method that allows to change the keyboard and to refresh eventually the action of a user
-    private function changeUserMenu($menu, $action, $refresh=true){ //refresh = true, viene refreshata la keyboard
+    private function changeUserMenu($menu, $action){ //refresh = true, viene refreshata la keyboard
         $sql = "UPDATE users SET menu=?, action=? WHERE chat_id=?"; 
         $stmt= $this->connection->prepare($sql);
         $stmt->execute([$menu, $action, $this->chat_id]);
-        if ($refresh){
-            return $this->setKeyboard($menu);
-        } else{
-            return NULL;
-        }
-        
-    }
 
-    //method that allows the saving of temporary prays: prays written but not sent
-    private function saveMessage(){
-        $sql = "SELECT * FROM temporary_prays WHERE chat_id = :user";
-        $query = $this->connection->prepare($sql);
-        $query->execute(['user' => $this->chat_id]);
-        $temporary_pray = $query->fetchAll();
-
-        $text = $temporary_pray[0]['pray'];
-        $date = new DateTime();
-        $created_at = $date->format('Y-m-d H-i-s');
-        $wednesday = $this->getWednesday();
-
-        $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
-            ('$text','$created_at','$wednesday', '$this->chat_id')";
-        $stmt = $this->connection->prepare($sql);
-        $stmt->execute();
-
-        $this->deleteTemporary();
-    }
-
-    //when a delete button is pressed, the pray stored in the temporary prays table is deleted
-    private function deleteTemporary(){
-        $sql = "DELETE FROM temporary_prays WHERE chat_id = :user";
-        $query = $this->connection->prepare($sql);
-        $query->execute(['user' => $this->chat_id]);
-    }
-
-    //it manages the temporary prays table operations
-    public function temporarySaveMessage($action){
-        $operation = $action;
-        return $this->$operation();
+        return $this->setKeyboard($menu);
     }
 
     //it obtains the following wednesday considering the datetime at the operation time
@@ -315,41 +233,6 @@ class Command{
             }
             return date('Y-m-d', $nextWednesday);
         }
-    }
-
-    //mode of the user: when it's in changingMessage mode, the next written message replaces the old one in the temporary prays table and the action is changed into sendMessage
-    private function changingMessage(){
-        //AGGIUNGERE CAMPO changing_date alla tabella temporary_prays ?
-        $sql = "UPDATE temporary_prays SET pray=? WHERE chat_id=?"; 
-        $stmt= $this->connection->prepare($sql);
-        $stmt->execute([$this->text, $this->chat_id]);
-        
-        $sql = "UPDATE users SET action='sendMessage' WHERE chat_id=?"; 
-        $stmt= $this->connection->prepare($sql); 
-        $stmt->execute([$this->chat_id]);
-        
-        return $this->httpAnswer('La tua preghiera è stata modificata correttamente. Ora per inviarla devi utilizzare il comando /invia ', $this->changeUserMenu(1, 'sendMessage'));
-    }
-
-    //mode of the user: when it's in writingMessage mode, the next written message is stored in the temporary prays table and the action is changed into sendMessage
-    private function writingMessage(){
-        $wednesday = $this->getWednesday();
-
-        $date = new DateTime();
-        $created_at = $date->format('Y-m-d H-i-s');
-        $sql = "INSERT INTO temporary_prays (chat_id, pray, day, created_at) VALUES
-            ('$this->chat_id', '$this->text', '$wednesday', '$created_at')";
-        $stmt = $this->connection->prepare($sql);
-        $stmt->execute();
-
-        $sql = "UPDATE users SET action='sendMessage' WHERE chat_id=?"; 
-        $stmt= $this->connection->prepare($sql);
-        $stmt->execute([$this->chat_id]);
-        
-        //the suggestion of this method is to create a only one transaction in order to make the two operations above
-
-
-        return $this->httpAnswer('Ora per poter salvare definitivamente la preghiera devi confermare tramite l\'apposito bottone o il comando /invia. Utilizza il comando /annulla per annullare l\'operazione');
     }
     
     //it returns the keyboard composed of the buttons
@@ -379,7 +262,14 @@ class Command{
                 }
             }
             else{
-                if (sizeof($array_buttons[$size-1])<2 && $button['style']=='half') {
+                if (sizeof($array_buttons[$size-1])==0){
+                    if($button['style']=='half')
+                        array_push($array_buttons[$size-1], $button['command']); 
+                    else{
+                        array_push($array_buttons[$size-1], $button['command']); 
+                        array_push($array_buttons, []);  
+                    }
+                } else if (sizeof($array_buttons[$size-1])==1 && $button['style']=='half') {
                     array_push($array_buttons[$size-1], $button['command']);  
                 } else if (sizeof($array_buttons[$size-1])==2 && $button['style']=='half'){
                     array_push($array_buttons, [$button['command']]);  
@@ -393,6 +283,8 @@ class Command{
         foreach ($array_buttons as $button){
             $keyboard->addRow(...$button); 
         }
+        
+        //$this->r::sendMessage($this->httpAnswer($keyboard));
 
         return $keyboard;
     }

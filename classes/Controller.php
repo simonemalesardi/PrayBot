@@ -45,7 +45,7 @@ class Controller{
                 $this->command->makeAction()
             );
         } else { //se l'utente non è nuovo 
-            if ($this->user->getAction()==NULL){ //se non sta effettuando alcuna operazione (come scrivi, modifica o programma)
+            if ($this->user->getAction()==NULL){ //se non è in modalità scrittura
                 if ($this->command->getCommand() == NULL)
                     $this->command->setCommand("command_not_found");
 
@@ -56,8 +56,7 @@ class Controller{
             } else { //se invece sta effettuando un'operazione
                 if ($this->command->getCommand() == NULL){ 
                     $this->command->setR($this->request);
-                    $action_message = $this->command->temporarySaveMessage($this->user->getAction());
-                    $this->request::sendMessage($action_message);
+                    $this->request::sendMessage($this->command->sendMessage());
                 } else {
                     $this->command->setDo($this->user->getAction());
                     $this->command->setR($this->request);
