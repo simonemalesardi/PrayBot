@@ -68,6 +68,11 @@ class User{
     public function isNew(){
         return $this->is_new;
     }
+
+    public function getChatID(){
+        return $this->chat_id;
+    }
+
 }
 
 

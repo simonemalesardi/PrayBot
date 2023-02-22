@@ -6,28 +6,23 @@ class Command{
     private $command; 
     private $answer;
     private $text_menu;
-    private $description;    
     public $action;
     private $connection; 
-    private $chat_id;
     private $user_menu;
     private $buttons;
     private $keyboard_object;
     public $welcome;
     private $do;
     private $text;
-    private $user_action;
+    private $user;
     private $privileges;
 
-    public function __construct(&$connection, $chat_id, $text, $user_menu, $privileges) {
+    public function __construct(&$connection, $text, $user) {
         $this->connection = $connection;
-        $this->chat_id = $chat_id;
         $this->text = $text;
         $this->setCommand($text);
-        $this->user_menu = $user_menu;
         $this->do = true;
-        $this->user_action = NULL;
-        $this->privileges = $privileges;
+        $this->user = $user;
     }
 
     public function getCommand(){
@@ -40,15 +35,9 @@ class Command{
             $this->command = $command_row['command'];
             $this->answer = $command_row['answer'];
             $this->text_menu = $command_row['text_menu'];
-            $this->description = $command_row['description'];
             $this->action = $command_row['action'];    
         } else 
             $this->command = NULL;
-    }
-
-    public function setDo($user_action){
-        $this->do = false;
-        $this->user_action = $user_action;
     }
 
     //it contains the query that allows to obtain the row relating to the command launched by the user
@@ -59,7 +48,7 @@ class Command{
         $command = $query->fetchAll();
         
         if (sizeof($command) == 1) {
-            return $command[0];;
+            return $command[0];
         }
         return NULL;
     }
@@ -71,16 +60,21 @@ class Command{
         return $this->$next_hop();
     }
 
+    public function makeUserAction(){
+        $action = $this->user->getAction();
+        return $this->$action();
+    }
+
     //it's the json returned for every user request
     public function httpAnswer($text, $keyboard = NULL){
         $http = [
-            'chat_id' => $this->chat_id,
+            'chat_id' => $this->user->getChatID(),
             'text'=> $text,
             'parse_mode' => 'HTML'
         ];
         if($keyboard != NULL)
             $http = [
-                'chat_id' => $this->chat_id,
+                'chat_id' => $this->user->getChatID(),
                 'text'=> $text,
                 'reply_markup' => $keyboard,
                 'parse_mode' => 'HTML'
@@ -92,7 +86,7 @@ class Command{
     //it's the function run every time the user digit /start or press the initial Start button (the Start button appears also every time the user cleans the conversation)
     private function init(){ 
         $answer =  ($this->welcome) ? $this->answer : "Ci siamo già presentati, ma nel caso in cui non ti ricordassi mi ripresento!\n\n".$this->answer; //devo settare changeUserMenu il valore di action dell'utente
-        return $this->httpAnswer($answer, $this->setKeyboard($this->user_menu)); 
+        return $this->httpAnswer($answer, $this->setKeyboard($this->user->getMenu())); 
     }
 
     //it obtain the message stored in the command row of the database table
@@ -103,8 +97,8 @@ class Command{
     //it obtains the info after the user press the relative button
     private function getInfo(){
         $answer = $this->answer;
-        if ($this->user_action=='writingMessage' or $this->user_action=="schedulingMessage")
-            $answer = $answer.'<i>Non hai scritto ancora nessuna preghiera, scrivi una preghiera premi invio per confermare, altrimenti /annulla</i>';
+        if ($this->user->getAction()=="schedulingMessage")
+            $answer = $answer.'<i>Non hai scelto la data della celebrazione a cui dedicare la preghiera. Prima di scrivere la preghiera scegli la data ed invia il messaggio, altrimenti /annulla</i>';
         
         return $this->httpAnswer($answer);
     }
@@ -113,7 +107,7 @@ class Command{
     private function getTemporaryPray(){
         $sql = "SELECT * FROM temporary_prays WHERE chat_id = :id";
         $query = $this->connection->prepare($sql);
-        $query->execute(['id' => $this->chat_id]);
+        $query->execute(['id' => $this->user->getChatID()]);
         $temporaryPray = $query->fetchAll();
 
         return $temporaryPray[0]['pray'];
@@ -125,7 +119,7 @@ class Command{
 
     //it allows to send pray and to store in the final table where the admin can download prays
     public function sendMessage(){
-        if ($this->user_menu != 1)
+        if ($this->user->getMenu() != 1)
             return $this->httpAnswer("Non puoi inviare un messaggio se prima non lo scrivi! Attiva il comando /scrivi o /programma e poi scrivi un messaggio!");
         else {
             $this->saveMessage();
@@ -139,9 +133,10 @@ class Command{
         $date = new DateTime();
         $created_at = $date->format('Y-m-d H-i-s');
         $wednesday = $this->getWednesday();
+        $chat_id = $this->user->getChatID();
 
         $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
-            ('$text','$created_at','$wednesday', '$this->chat_id')";
+            ('$text','$created_at','$wednesday', '$chat_id')";
         $stmt = $this->connection->prepare($sql);
         $stmt->execute();
     }
@@ -167,24 +162,15 @@ class Command{
         }
         return $unique_string_of_prays;
     }
-    
-    private function undoEdit(){
-        if($this->user_action === 'changingMessage'){
-            return $this->httpAnswer("Operazione di modifica annullata", $this->changeUserMenu(1, 'sendMessage'));
-        } else 
-            return $this->httpAnswer("Non puoi utilizzare questa funzionalità, non hai effettuato alcuna operazione che richiede l'annullamento");    
-    }
-    
    
     //it allows to schedule the date to dedicate the pray
     private function scheduleMessage(){
-        if($this->user_action == NULL){
-            //update dello stato
+        if($this->user->getAction() == NULL){
             return $this->httpAnswer('Inserisci la data per cui vuoi programmare la preghiera:', $this->changeUserMenu(1, 'schedulingMessage'));
-        } else if ($this->user_action == 'schedulingMessage'){
+        } else if ($this->user->getAction() == 'schedulingMessage'){
             return $this->httpAnswer('Stai già programmando l\'inserimento. Inserisci la data ');
         } else {
-            if ($this->user_action == 'sendMessage')
+            if ($this->user->getAction() == 'sendMessage')
                 return $this->httpAnswer('Prima di procedere con il comando /programma, termina l\'operazione che hai iniziato con /scrivi. Scrivi quindi una preghiera');    
             return $this->httpAnswer('Prima di procedere con il comando, finisci di programmare la preghiera. Inserisci la preghiera');
         }
@@ -196,21 +182,23 @@ class Command{
     }
 
     public function sendingMessage(){
+        $chat_id = $this->user->getChatID();
+
         $sql = "SELECT * FROM scheduled_prays WHERE chat_id = :chat_id";
         $query = $this->connection->prepare($sql);
-        $query->execute(['chat_id' => $this->chat_id]);
+        $query->execute(['chat_id' => $chat_id]);
         $scheduled = $query->fetchAll()[0];
 
         $created_at = $scheduled['created_at'];
         $schedule = $scheduled['scheduled'];
         $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
-        ('$this->text','$created_at','$schedule', '$this->chat_id')";
+        ('$this->text','$created_at','$schedule', '$chat_id')";
         $stmt = $this->connection->prepare($sql);
         $stmt->execute();
 
         $sql = "DELETE FROM scheduled_prays WHERE chat_id = :chat_id";
         $query = $this->connection->prepare($sql);
-        $query->execute(['chat_id' => $this->chat_id]);
+        $query->execute(['chat_id' => $chat_id]);
 
         return $this->httpAnswer('Grazie per aver condiviso con me la tua preghiera!', $this->changeUserMenu(0, NULL));
     }
@@ -221,7 +209,7 @@ class Command{
     }
 
     private function checkWednesday(){
-        $next_wednesday = date('d/m/Y', strtotime($this->getWednesday()));
+        $next_wednesday = DateTime::createFromFormat('Y-m-d', $this->getWednesday())->format('d/m/Y');
         // controlla che la stringa sia nel formato gg/mm/aaaa
         if (!preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $this->text)) {
             return "Ops! La data che hai inserito non è in un formato corretto. Il formato corretto è gg/mm/aaaa (es: $next_wednesday)";
@@ -237,9 +225,10 @@ class Command{
                 $text = $this->text->format('Y-m-d');
                 $date = new DateTime();
                 $created_at = $date->format('Y-m-d H-i-s');
+                $chat_id = $this->user->getChatID();
 
                 $sql = "INSERT INTO scheduled_prays (chat_id, created_at, scheduled) VALUES
-                    ('$this->chat_id','$created_at','$text')";
+                    ('$chat_id','$created_at','$text')";
                 $stmt = $this->connection->prepare($sql);
                 $stmt->execute();
                 
@@ -266,18 +255,15 @@ class Command{
         return [$this->text >= $next_wednesday, NULL];
     }
 
-    
     //it allows to write a pray and to store it in a temporary database table 
     private function writeMessage(){
-        if($this->do){
-            if($this->user_menu == 0){ 
-                return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'sendMessage'));
-            }
+        if($this->user->getMenu() == 0){ 
+            return $this->httpAnswer($this->answer, $this->changeUserMenu(1, 'sendMessage'));
         }
         else {
-            if ($this->user_action == 'sendMessage')
+            if ($this->user->getAction() == 'sendMessage')
                 return $this->httpAnswer("Sei già in modalità inserimento...");
-            else if($this->user_action == 'schedulingMessage' or $this->user_action == 'sendingMessage')
+            else if($this->user->getAction() == 'schedulingMessage' or $this->user->getAction() == 'sendingMessage')
                 return $this->httpAnswer("Prima di procedere con l'inserimento di una nuova preghiera, termina la programmazione che stavi facendo");
 
             return $this->httpAnswer("La preghiera è stata salvata correttamente");
@@ -286,11 +272,11 @@ class Command{
 
     //it allows to delete a pray that has not yet been sent 
     private function deleteMessage(){
-        if($this->user_menu == 1){ 
-            if($this->user_action == 'sendingMessage'){
+        if($this->user->getMenu() == 1){ 
+            if($this->user->getAction() == 'sendingMessage'){
                 $sql = "DELETE FROM scheduled_prays WHERE chat_id = :chat_id";
                 $query = $this->connection->prepare($sql);
-                $query->execute(['chat_id' => $this->chat_id]);
+                $query->execute(['chat_id' => $this->user->getChatID()]);
             }
             return $this->httpAnswer($this->answer, $this->changeUserMenu(0, NULL));
         } else {
@@ -307,7 +293,7 @@ class Command{
     private function updateUser($menu, $action){
         $sql = "UPDATE users SET menu=?, action=? WHERE chat_id=?"; 
         $stmt= $this->connection->prepare($sql);
-        $stmt->execute([$menu, $action, $this->chat_id]);
+        $stmt->execute([$menu, $action, $this->user->getChatID()]);
     }
 
     //it obtains the following wednesday considering the datetime at the operation time
@@ -316,11 +302,10 @@ class Command{
         $today = date('l');
         $current_time = time();
         $current_time_formatted = date('H:i:s', $current_time);
-        if ($today === 'Wednesday' and $current_time_formatted<$hour) {
+        if ($today === 'Wednesday' and $current_time_formatted < $hour) {
             //prendo il current timestamp
             $date = new DateTime();
-            return $date->format('Y-m-d H-i-s');
-            
+            return $date->format('Y-m-d');
         } else{
             $nextWednesday = strtotime('next wednesday');
             $dayOfWeek = date('N', $nextWednesday);
@@ -337,7 +322,7 @@ class Command{
 
         $sql = "SELECT * FROM keyboards WHERE id = :id and admin <= :privileges";
         $query = $this->connection->prepare($sql);
-        $query->execute(['id' => $menu, 'privileges' => $this->privileges]);
+        $query->execute(['id' => $menu, 'privileges' => $this->user->getPrivileges()]);
         $buttons = $query->fetchAll();
 
         usort($buttons, function($a, $b) {

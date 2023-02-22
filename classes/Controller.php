@@ -37,7 +37,7 @@ class Controller{
     }
 
     public function start(){
-        $this->command = new Command($this->connection, $this->chat_id, $this->text, $this->user->getMenu(), $this->user->getPrivileges()); //creazione del comando
+        $this->command = new Command($this->connection, $this->text, $this->user); //creazione del comando
        
         if($this->user->isNew()){ //gestione del nuovo utente: utente creato = new record e set tastiera
             $this->command->welcome = true;
@@ -55,26 +55,13 @@ class Controller{
                 );
             } else { //se invece sta effettuando un'operazione
                 if ($this->command->getCommand() == NULL){ 
-                    $this->command->setR($this->request);
-                    $action = $this->user->getAction();
-                    $this->request::sendMessage($this->command->$action());
+                    //$this->command->setR($this->request);
+                    $this->request::sendMessage($this->command->makeUserAction());
                 } else {
-                    $this->command->setDo($this->user->getAction());
-                    $this->command->setR($this->request);
+                    //$this->command->setR($this->request);
                     $this->request::sendMessage($this->command->makeAction());
                 }
             }
         }
     }
-
-
-        /*$this->request::sendMessage([
-            'chat_id' => $this->chat_id,
-            'text' => "test",
-            'reply_markup' => json_encode([
-                'remove_keyboard' => true,
-            ]),
-        ]);*/
-        
-    
 }
