@@ -21,8 +21,6 @@ class Controller{
 
     private $request;
     private $user;
-
-    private $allowed_actions = ['/elimina', '/info', '/aiuto', '/start'];
     
     public function __construct($database, $message_received) {
         $this->connection = $database;
@@ -40,7 +38,8 @@ class Controller{
         $this->command = new Command($this->connection, $this->text, $this->user); //creazione del comando
        
         if($this->user->isNew()){ //gestione del nuovo utente: utente creato = new record e set tastiera
-            $this->command->welcome = true;
+            $this->command->setR($this->request);
+
             $this->request::sendMessage(
                 $this->command->makeAction()
             );

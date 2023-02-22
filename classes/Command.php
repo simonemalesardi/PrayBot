@@ -11,8 +11,6 @@ class Command{
     private $user_menu;
     private $buttons;
     private $keyboard_object;
-    public $welcome;
-    private $do;
     private $text;
     private $user;
     private $privileges;
@@ -21,7 +19,6 @@ class Command{
         $this->connection = $connection;
         $this->text = $text;
         $this->setCommand($text);
-        $this->do = true;
         $this->user = $user;
     }
 
@@ -38,6 +35,10 @@ class Command{
             $this->action = $command_row['action'];    
         } else 
             $this->command = NULL;
+    }
+
+    public function getAnswer(){
+        return $this->answer;
     }
 
     //it contains the query that allows to obtain the row relating to the command launched by the user
@@ -85,7 +86,7 @@ class Command{
 
     //it's the function run every time the user digit /start or press the initial Start button (the Start button appears also every time the user cleans the conversation)
     private function init(){ 
-        $answer =  ($this->welcome) ? $this->answer : "Ci siamo già presentati, ma nel caso in cui non ti ricordassi mi ripresento!\n\n".$this->answer; //devo settare changeUserMenu il valore di action dell'utente
+        $answer =  ($this->user->isNew()) ? $this->answer : "Ci siamo già presentati, ma nel caso in cui non ti ricordassi mi ripresento!\n\n".$this->answer; //devo settare changeUserMenu il valore di action dell'utente
         return $this->httpAnswer($answer, $this->setKeyboard($this->user->getMenu())); 
     }
 
@@ -317,14 +318,14 @@ class Command{
     }
     
     //it returns the keyboard composed of the buttons
-    private function setKeyboard($menu){
+    public function setKeyboard($menu){
         $keyboard = new Keyboard([]);
 
         $sql = "SELECT * FROM keyboards WHERE id = :id and admin <= :privileges";
         $query = $this->connection->prepare($sql);
         $query->execute(['id' => $menu, 'privileges' => $this->user->getPrivileges()]);
         $buttons = $query->fetchAll();
-
+        
         usort($buttons, function($a, $b) {
                 return $a['position'] - $b['position'];
             });
