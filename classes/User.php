@@ -23,7 +23,7 @@ class User{
     private function getUser(){
         $sql = "SELECT * FROM users WHERE chat_id = :chat_id";
         $query = $this->connection->prepare($sql);
-        $query->execute(['chat_id' => $this->chat_id]);
+        $query->execute(['chat_id' => md5($this->chat_id)]);
         $user = $query->fetchAll();
         
         if (sizeof($user)==0){
@@ -31,7 +31,7 @@ class User{
 
             $sql = "SELECT * FROM users WHERE chat_id = :chat_id";
             $query = $this->connection->prepare($sql);
-            $query->execute(['chat_id' => $this->chat_id]);
+            $query->execute(['chat_id' => md5($this->chat_id)]);
             $user = $query->fetchAll();
         }
 
@@ -42,9 +42,11 @@ class User{
     }
 
     private function insertUser(){
+        $chat_id = md5($this->chat_id);
+        
         $date = new DateTime();
         $converted_date = $date->format('Y-m-d H-i-s');
-        $sql = "INSERT INTO users (username, chat_id, created_at, menu) VALUES('$this->username','$this->chat_id', '$converted_date', 0)";
+        $sql = "INSERT INTO users (username, chat_id, created_at, menu) VALUES('$this->username','$chat_id', '$converted_date', 0)";
         $stmt = $this->connection->prepare($sql);
         $stmt->execute();
         

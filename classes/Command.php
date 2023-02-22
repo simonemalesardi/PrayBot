@@ -108,7 +108,7 @@ class Command{
     private function getTemporaryPray(){
         $sql = "SELECT * FROM temporary_prays WHERE chat_id = :id";
         $query = $this->connection->prepare($sql);
-        $query->execute(['id' => $this->user->getChatID()]);
+        $query->execute(['id' => md5($this->user->getChatID())]);
         $temporaryPray = $query->fetchAll();
 
         return $temporaryPray[0]['pray'];
@@ -134,7 +134,7 @@ class Command{
         $date = new DateTime();
         $created_at = $date->format('Y-m-d H-i-s');
         $wednesday = $this->getWednesday();
-        $chat_id = $this->user->getChatID();
+        $chat_id = md5($this->user->getChatID());
 
         $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
             ('$text','$created_at','$wednesday', '$chat_id')";
@@ -183,7 +183,7 @@ class Command{
     }
 
     public function sendingMessage(){
-        $chat_id = $this->user->getChatID();
+        $chat_id = md5($this->user->getChatID());
 
         $sql = "SELECT * FROM scheduled_prays WHERE chat_id = :chat_id";
         $query = $this->connection->prepare($sql);
@@ -192,6 +192,7 @@ class Command{
 
         $created_at = $scheduled['created_at'];
         $schedule = $scheduled['scheduled'];
+
         $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
         ('$this->text','$created_at','$schedule', '$chat_id')";
         $stmt = $this->connection->prepare($sql);
@@ -226,7 +227,7 @@ class Command{
                 $text = $this->text->format('Y-m-d');
                 $date = new DateTime();
                 $created_at = $date->format('Y-m-d H-i-s');
-                $chat_id = $this->user->getChatID();
+                $chat_id = md5($this->user->getChatID());
 
                 $sql = "INSERT INTO scheduled_prays (chat_id, created_at, scheduled) VALUES
                     ('$chat_id','$created_at','$text')";
@@ -294,7 +295,7 @@ class Command{
     private function updateUser($menu, $action){
         $sql = "UPDATE users SET menu=?, action=? WHERE chat_id=?"; 
         $stmt= $this->connection->prepare($sql);
-        $stmt->execute([$menu, $action, $this->user->getChatID()]);
+        $stmt->execute([$menu, $action, md5($this->user->getChatID())]);
     }
 
     //it obtains the following wednesday considering the datetime at the operation time
