@@ -56,14 +56,29 @@ class Command{
 
     //it's the manager of most of the methods
     public function makeAction(){
-        //prima di fare questo dovrei controllare lo stato dello user
-        $next_hop = $this->action;
-        return $this->$next_hop();
+        if ($this->action === 'init')
+            return $this->init();
+        else if ($this->action === 'getInfo')
+            return $this->getInfo();
+        else if ($this->action === 'getMessage')
+            return $this->getMessage();
+        else if ($this->action === 'scheduleMessage')
+            return $this->scheduleMessage();
+        else if ($this->action === 'deleteMessage')
+            return $this->deleteMessage();
+        else if ($this->action === 'writeMessage')
+            return $this->writeMessage();
+        else if ($this->action === 'downloadPrays')
+            return $this->downloadPrays();    
     }
 
     public function makeUserAction(){
-        $action = $this->user->getAction();
-        return $this->$action();
+        if ($this->user->getAction() === 'sendMessage')
+            return $this->sendMessage();
+        else if ($this->user->getAction() === 'sendingMessage')
+            return $this->sendingMessage();
+        else if ($this->user->getAction() === 'schedulingMessage')
+            return $this->schedulingMessage();
     }
 
     //it's the json returned for every user request
@@ -143,7 +158,7 @@ class Command{
     }
     
     private function downloadPrays(){
-        $wednesday = $this->getWednesday('20:45:00');
+        $wednesday = $this->getWednesday('21:00:00');
         $unique_pray = $this->getPray($wednesday);
         $wednesday = date('d/m/Y', strtotime($wednesday));
         return $this->httpAnswer("<b>Ecco le preghiere di mercoledì $wednesday</b>".$unique_pray);    

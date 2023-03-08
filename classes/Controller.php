@@ -36,6 +36,7 @@ class Controller{
 
     public function start(){
         $this->command = new Command($this->connection, $this->text, $this->user); //creazione del comando
+        //$this->request::sendMessage($this->command->httpAnswer(password_hash($this->chat_id, PASSWORD_BCRYPT)));
 
         if($this->user->isNew()){ //gestione del nuovo utente: utente creato = new record e set tastiera
             $this->command->setR($this->request);
