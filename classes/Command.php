@@ -151,6 +151,7 @@ class Command{
         $wednesday = $this->getWednesday();
         $chat_id = md5($this->user->getChatID());
 
+        $text = str_replace('\'', '\\\'', $text); #se omesso, non viene caricata la preghiera sul database
         $sql = "INSERT INTO prays (text, created_at, wednesday, chat_id) VALUES
             ('$text','$created_at','$wednesday', '$chat_id')";
         $stmt = $this->connection->prepare($sql);
